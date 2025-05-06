@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+essentia
+hhtpx
+numpy<2.0
