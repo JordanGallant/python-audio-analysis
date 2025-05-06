@@ -65,8 +65,8 @@ async def get_songs():
                 "count": idx,
                 "title": song["title"],
                 "url": song["url"],
-                "duration_sec": round(duration, 2),
-                "loudness_lufs": round(loudness, 2)
+                "danceability": round(danceability, 2),
+                "BPM": round(bpm, 2)
             })
 
         finally:#remove temp file
