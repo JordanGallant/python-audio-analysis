@@ -5,8 +5,40 @@ import os
 import essentia
 import essentia.standard as es
 import numpy as np
+from fastapi.middleware.cors import CORSMiddleware  # Import CORS middleware
+import redis
+import json
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+
+
+redis_password = os.environ.get('REDIS_PASSWORD') 
+
+r = redis.Redis(
+    host='redis-16786.c339.eu-west-3-1.ec2.redns.redis-cloud.com',
+    port=16786,
+    decode_responses=True,
+    username="default",
+    password=redis_password,
+)
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    # Allow requests from any origin (you can restrict this to specific domains)
+    allow_origins=["*"],
+    # Allow all common HTTP methods
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    # Allow standard headers
+    allow_headers=["*"],
+    # Allow credentials such as cookies
+    allow_credentials=True,
+)
+
 
 @app.get("/")
 def read_root():
@@ -22,12 +54,12 @@ async def get_songs():
         response = await client.get(url)
         songs_data = response.json()
     #limit 2 -> while testing
-    first_two_songs = songs_data["songs"][:2]
-    print(f"Fetched {len(first_two_songs)} songs. Starting analysis...\n")
+    all_songs = songs_data["songs"]
+    print(f"Fetched {len(all_songs)} songs. Starting analysis...\n")
 
     analysis_results = []
     #loops through songs to process audio
-    for idx, song in enumerate(first_two_songs, start=1):
+    for idx, song in enumerate(all_songs, start=1):
         print(f"[{idx}] Downloading: {song['title']}")
 
         mp3_url = song["url"]
@@ -39,6 +71,8 @@ async def get_songs():
         #creates temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
             tmp_file.write(mp3_data)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())  # Ensures data is written to disk
             tmp_path = tmp_file.name
         print(f"[{idx}] Temporary file saved at: {tmp_path}")
 
@@ -84,9 +118,6 @@ async def get_songs():
                     flux_val = flux(spec - prev_spectrum)
                     flux_values.append(flux_val)
                 prev_spectrum = spec
-
-
-
 
             #BPM
             rhythm_extractor = es.RhythmExtractor2013()
@@ -146,9 +177,15 @@ async def get_songs():
                 
             })
 
-        finally:#remove temp file
-            os.remove(tmp_path)
-            print(f"[{idx}] Temp file deleted.\n")
+        finally:#checks if file is already deleted -> handles error
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+                print(f"[{idx}] Temp file deleted.\n")
+            else:
+                print(f"[{idx}] Temp file already deleted or not found.\n")
+
+    results_key = "analysis_results"
+    r.set(results_key, json.dumps(analysis_results))
 
     print("All songs processed. Returning results.\n")
     return analysis_results
