@@ -14,11 +14,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-
+redis_uri = os.environ.get('REDIS_URI')
 redis_password = os.environ.get('REDIS_PASSWORD') 
 
 r = redis.Redis(
-    host='redis-16786.c339.eu-west-3-1.ec2.redns.redis-cloud.com',
+    host=redis_uri,
     port=16786,
     decode_responses=True,
     username="default",
